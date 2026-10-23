@@ -36,3 +36,18 @@ packaging/build/
 packaging/dist/
 packaging/*.zip
 *.lnk
+
+# Personal builds and signing material
+/build/
+/dist/
+/android-personal/output/
+*.p12
+*.jks
+*.keystore
+*signing-password*
+*.apk
+*.exe
+docs/demo/voice-*.wav
+docs/demo/soundtrack.wav
+docs/demo/qunwutai-xuanchuan.mp4
+node_modules/

@@ -56,7 +56,7 @@ def _ports(text: str | None = None) -> set[int]:
 
 def find_roots() -> list[NapcatRoot]:
     candidates: list[Path] = []
-    for raw in (r"F:\NapCat", r"F:\napcat-dl", os.environ.get("APPDATA", ""), os.environ.get("LOCALAPPDATA", ""), "D:\\"):
+    for raw in (r"F:\NapCat", r"F:\napcat-dl", os.environ.get("APPDATA", ""), os.environ.get("QQ_DIGEST_NAPCAT_DIR", ""), str(Path(os.environ["QQ_DIGEST_DATA_DIR"]) / "napcat") if os.environ.get("QQ_DIGEST_DATA_DIR") else ""):
         if raw:
             candidates.append(Path(raw))
     seen: set[Path] = set()
@@ -77,6 +77,10 @@ def find_roots() -> list[NapcatRoot]:
     if not files:
         for base in candidates:
             if not base.exists():
+                continue
+            # Never recursively scan a whole user profile or disk on every
+            # status request. APPDATA can supply a direct root, as above.
+            if str(base) in {os.environ.get("APPDATA", ""), os.environ.get("LOCALAPPDATA", "")}:
                 continue
             try:
                 files.extend(base.glob("**/config/webui.json"))
@@ -292,7 +296,7 @@ def detect_boot() -> dict[str, str] | None:
             except OSError:
                 pass
     for boot in boots:
-        shell = boot.parents[5] if len(boot.parents) > 5 else boot.parent
+        shell = next((parent for parent in boot.parents if (parent / "QQ.exe").is_file()), boot.parent)
         qq = shell / "QQ.exe"
         hook = boot.with_name("NapCatWinBootHook.dll")
         if not (qq.is_file() and hook.is_file()):

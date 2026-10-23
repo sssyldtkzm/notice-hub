@@ -61,7 +61,7 @@ class SummarizerTest(unittest.TestCase):
 
     def test_notice_kept_and_chatter_dropped(self) -> None:
         records = [
-            make_record("m1", "请各班班长今天18:00前提交材料"),
+            make_record("m1", "请各班班长今天18:00前提交材料", minutes_ago=1),
             make_record("m2", "哈哈哈哈", sender="同学A"),
             make_record("m3", "有人一起去图书馆吗", sender="同学B"),
         ]

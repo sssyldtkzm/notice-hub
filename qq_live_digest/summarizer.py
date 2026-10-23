@@ -375,7 +375,16 @@ def _prepare_items(
     settings: Settings,
     history: Iterable[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], bool, str, bool]:
-    candidates = [item for item in analyses if is_focus(item, settings)]
+    from .board import explicit_deadline, is_homework
+    protected = []
+    for item in analyses:
+        message = item.get("message")
+        text = str(getattr(message, "text", "") or "")
+        due = explicit_deadline(text, getattr(message, "timestamp", None))
+        if is_homework(text) and due:
+            item.update(category="action", importance=5, action=text, deadline_dt=parse_iso(due))
+            protected.append(item)
+    candidates = [item for item in analyses if is_focus(item, settings) or item in protected]
     if history:
         candidates, suppressed = filter_recent_duplicates(candidates, history, settings)
         if suppressed:
@@ -389,8 +398,13 @@ def _prepare_items(
                 "、".join(names) or "来源未知",
             )
     candidates = qq_digest.dedupe_items(candidates)
+    # Specific assignments with explicit dates must not disappear as a similar
+    # previous assignment or a lower-scored notice.
+    kept = {str(item.get("msg_id")) for item in candidates}
+    candidates.extend(item for item in protected if str(item.get("msg_id")) not in kept)
     candidates.sort(key=lambda value: int(value.get("score") or 0), reverse=True)
-    candidates = candidates[: settings.max_items]
+    # Keep all selected notices: the entire input batch is marked processed.
+    # A presentation limit here silently discarded actionable homework.
 
     llm_used = False
     llm_error = ""
@@ -401,6 +415,7 @@ def _prepare_items(
             llm_error = "未配置 DASHSCOPE_API_KEY"
         else:
             try:
+                originals = list(candidates)
                 candidates = qq_digest.refine_with_dashscope(
                     candidates,
                     settings.dashscope_api_key,
@@ -411,6 +426,8 @@ def _prepare_items(
                     backoff=settings.llm_retry_backoff,
                     backend=settings.llm_backend,
                 )
+                kept = {str(item.get("msg_id")) for item in candidates}
+                candidates.extend(item for item in originals if item in protected and str(item.get("msg_id")) not in kept)
                 llm_used = True
             except RuntimeError as error:
                 llm_error = str(error)

@@ -151,6 +151,10 @@ TASK_COLUMN_MIGRATIONS = {
     "duplicate_of": "INTEGER NOT NULL DEFAULT 0",
     "urgent_override": "INTEGER",
     "pinned": "INTEGER NOT NULL DEFAULT 0",
+    "favorite": "INTEGER NOT NULL DEFAULT 0",
+    "highlight": "INTEGER NOT NULL DEFAULT 0",
+    "homework_override": "INTEGER",
+    "deadline_issue": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -563,7 +567,16 @@ class Store:
         return out
 
     # ------------------------------------------------------------------- 任务
-    def upsert_task(
+    def upsert_task(self, **kwargs: Any) -> int:
+        task_id = self._upsert_task(**kwargs)
+        if task_id:
+            from .event_identity import consolidate
+            consolidate(self, task_id)
+            task = self.get_task(task_id)
+            return int(task.get('duplicate_of') or task_id) if task else task_id
+        return task_id
+
+    def _upsert_task(
         self,
         *,
         task_key: str,
@@ -597,9 +610,19 @@ class Store:
         detail_list = [str(value) for value in details if str(value or "").strip()]
         details_json = json.dumps(detail_list, ensure_ascii=False)
         with self._connect() as connection:
+            from .board import checked_deadline, explicit_deadline, is_homework
+            original_id = key.removeprefix("inbox:")
+            original = connection.execute("SELECT ts FROM messages WHERE msg_id=?", (original_id,)).fetchone()
+            if not deadline:
+                deadline = explicit_deadline(str(evidence or summary), original["ts"] if original else stamp)
+            deadline, deadline_issue = checked_deadline(deadline, original["ts"] if original else None, str(summary or '') + '\n' + str(evidence or ''))
+            if is_homework(str(evidence or summary)):
+                importance = 5
             existing = connection.execute(
-                "SELECT id, status FROM tasks WHERE task_key = ?", (key,)
+                "SELECT id, status, duplicate_of FROM tasks WHERE task_key IN (?,?) ORDER BY id LIMIT 1", (key, "inbox:" + key if not key.startswith("inbox:") else original_id)
             ).fetchone()
+            if existing is not None and existing["duplicate_of"]:
+                return int(existing["duplicate_of"])
             if existing is None:
                 cursor = connection.execute(
                     """
@@ -631,6 +654,7 @@ class Store:
                     ),
                 )
                 task_id = int(cursor.lastrowid or 0)
+                connection.execute("UPDATE tasks SET deadline_issue=? WHERE id=?", (deadline_issue, task_id))
                 self._task_event(
                     connection,
                     task_id,
@@ -691,6 +715,8 @@ class Store:
                     task_id,
                 ),
             )
+            if deadline or deadline_issue:
+                connection.execute("UPDATE tasks SET deadline=?,deadline_issue=? WHERE id=?", (deadline, deadline_issue, task_id))
             return task_id
 
     def list_tasks(
@@ -698,7 +724,7 @@ class Store:
         *,
         include_done: bool = True,
         statuses: Iterable[str] | None = None,
-        limit: int = 800,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         where: list[str] = []
         params: list[Any] = []
@@ -714,7 +740,8 @@ class Store:
                     WHERE e.task_id = t.id AND e.event = 'candidate_detected'
                     ORDER BY e.id DESC LIMIT 1) AS candidate_detail
                    ,(SELECT COALESCE(NULLIF(m.source_text, ''), m.content) FROM messages m
-                     WHERE m.msg_id = t.task_key LIMIT 1) AS source_text
+                     WHERE m.msg_id = CASE WHEN t.task_key LIKE 'inbox:%' THEN substr(t.task_key,7) ELSE t.task_key END LIMIT 1) AS source_text
+                   ,(SELECT m.ts FROM messages m WHERE m.msg_id = CASE WHEN t.task_key LIKE 'inbox:%' THEN substr(t.task_key,7) ELSE t.task_key END LIMIT 1) AS source_sent_at
                    ,(SELECT d.summary FROM tasks d WHERE d.id = t.duplicate_of) AS duplicate_summary
             FROM tasks t
         """
@@ -722,9 +749,11 @@ class Store:
             sql += " WHERE " + " AND ".join(where)
         sql += (
             " ORDER BY CASE WHEN t.deadline = '' THEN 1 ELSE 0 END, t.deadline ASC,"
-            " t.importance DESC, t.id DESC LIMIT ?"
+            " t.importance DESC, t.id DESC"
         )
-        params.append(max(1, int(limit)))
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(max(1, int(limit)))
         with self._connect() as connection:
             rows = connection.execute(sql, tuple(params)).fetchall()
         return [self._task_row(row) for row in rows]
@@ -738,7 +767,8 @@ class Store:
                         WHERE e.task_id = t.id AND e.event = 'candidate_detected'
                         ORDER BY e.id DESC LIMIT 1) AS candidate_detail
                        ,(SELECT COALESCE(NULLIF(m.source_text, ''), m.content) FROM messages m
-                         WHERE m.msg_id = t.task_key LIMIT 1) AS source_text
+                         WHERE m.msg_id = CASE WHEN t.task_key LIKE 'inbox:%' THEN substr(t.task_key,7) ELSE t.task_key END LIMIT 1) AS source_text
+                       ,(SELECT m.ts FROM messages m WHERE m.msg_id = CASE WHEN t.task_key LIKE 'inbox:%' THEN substr(t.task_key,7) ELSE t.task_key END LIMIT 1) AS source_sent_at
                        ,(SELECT d.summary FROM tasks d WHERE d.id = t.duplicate_of) AS duplicate_summary
                 FROM tasks t WHERE t.id = ?
                 """,
@@ -1276,6 +1306,10 @@ class Store:
                 if str(value or "").strip() and not parsed_deadline:
                     raise ValueError("无效的截止时间")
                 new_deadline = parsed_deadline
+                original = connection.execute("SELECT m.ts FROM tasks t JOIN messages m ON m.msg_id=CASE WHEN t.task_key LIKE 'inbox:%' THEN substr(t.task_key,7) ELSE t.task_key END WHERE t.id=?", (task_id,)).fetchone()
+                if original and parsed_deadline and parsed_deadline <= original["ts"]:
+                    raise ValueError("截止时间必须晚于原消息发送时间")
+                connection.execute("UPDATE tasks SET deadline_issue='' WHERE id=?", (task_id,))
             elif correction == "clear_deadline":
                 new_deadline = ""
             detail = {

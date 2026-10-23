@@ -89,6 +89,10 @@ def promote(settings, store, msg_id, *, title=None, due=None):
     if not row: return {"ok":False,"task_id":None,"error":"消息不存在或未分类"}
     existing=store.inbox_items(limit=1000); old=next((x for x in existing if x["msg_id"]==str(msg_id) and x.get("task_id")),None)
     if old: return {"ok":True,"task_id":old["task_id"],"error":""}
-    task_id=store.upsert_task(task_key="inbox:"+str(msg_id),summary=title or row["content"],deadline=due or "",groups=[row["group_name"]],sender=row["sender_name"],evidence=row["content"],source="inbox")
+    # Reuse an automatically created task rather than creating a second copy.
+    with store._connect() as connection:
+        previous = connection.execute("SELECT id,task_key FROM tasks WHERE task_key IN (?,?) ORDER BY id LIMIT 1", (str(msg_id), "inbox:"+str(msg_id))).fetchone()
+    key = previous["task_key"] if previous else str(msg_id)
+    task_id=store.upsert_task(task_key=key,summary=title or row["content"],deadline=due or "",groups=[row["group_id"]],sender=row["sender_name"],evidence=row["content"],source="inbox")
     store.save_mark(msg_id,row["verdict"],row["reason"],row["method"],task_id)
     return {"ok":bool(task_id),"task_id":task_id,"error":"" if task_id else "任务创建失败"}

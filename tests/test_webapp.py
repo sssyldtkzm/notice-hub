@@ -1437,14 +1437,14 @@ class TaskApiTest(unittest.TestCase):
         self.assertEqual(field(render(""), "SEQUENCE"), "0")
 
     def test_page_is_served(self) -> None:
-        request = urllib.request.Request(f"{self.base}/?token=secret")
+        request = urllib.request.Request(f"{self.base}/console?token=secret")
         with urllib.request.urlopen(request, timeout=5) as response:
             body = response.read().decode("utf-8")
         self.assertIn("群消息待办", body)
         self.assertIn("/api/tasks", body)
 
     def test_dashboard_has_accessible_tabs_and_controlled_panels(self) -> None:
-        request = urllib.request.Request(f"{self.base}/?token=secret")
+        request = urllib.request.Request(f"{self.base}/console?token=secret")
         with urllib.request.urlopen(request, timeout=5) as response:
             body = response.read().decode("utf-8")
         self.assertRegex(body, r'<nav\b[^>]*aria-label="主导航"[^>]*role="tablist"')
@@ -1623,7 +1623,7 @@ class TaskApiTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as context:
             opener.open(request, timeout=5)
         self.assertEqual(context.exception.code, 302)
-        self.assertEqual(context.exception.headers.get("Location"), "/?token=secret")
+        self.assertEqual(context.exception.headers.get("Location"), "/console?token=secret")
         context.exception.close()
 
     def test_subscription_save_reports_server_failure(self) -> None:
@@ -2036,7 +2036,7 @@ class TaskApiTest(unittest.TestCase):
         self.assertEqual(env_path.read_text(encoding="utf-8"), "KEEP=yes\n")
 
     def test_inbox_ui_has_four_tabs_accessible_workflow_and_no_external_assets(self) -> None:
-        html = urllib.request.urlopen(urllib.request.Request(self.base + "/?token=secret", headers={"X-Token": "secret"}), timeout=5).read().decode("utf-8")
+        html = urllib.request.urlopen(urllib.request.Request(self.base + "/console?token=secret", headers={"X-Token": "secret"}), timeout=5).read().decode("utf-8")
         self.assertIn("id=\"tab-inbox-button\"", html)
         self.assertIn("回溯聊天记录", html)
         self.assertIn("确定通知", html)
@@ -2063,7 +2063,7 @@ class TaskApiTest(unittest.TestCase):
         self.assertFalse(data["ok"])
 
     def test_dashboard_contains_login_choices_and_explanation(self) -> None:
-        request = urllib.request.Request(f"{self.base}/?token=secret")
+        request = urllib.request.Request(f"{self.base}/console?token=secret")
         with urllib.request.urlopen(request, timeout=5) as response:
             page = response.read().decode("utf-8")
         for text in ("扫码登录", "用指定 QQ 号快速登录", "独立资料目录", "同一 QQ 号不能同时登录两台电脑", "QQ 小号接收通知"):
@@ -2074,7 +2074,7 @@ class TaskApiTest(unittest.TestCase):
             self.assertIn(text, page)
 
     def test_auto_setup_preserves_steps_restart_and_error_feedback(self) -> None:
-        request = urllib.request.Request(f"{self.base}/?token=secret")
+        request = urllib.request.Request(f"{self.base}/console?token=secret")
         with urllib.request.urlopen(request, timeout=5) as response:
             page = response.read().decode("utf-8")
         start = page.index("function runAutoSetup()")
@@ -2092,7 +2092,7 @@ class TaskApiTest(unittest.TestCase):
         self.assertIn("document.getElementById('auto-setup').onclick=runAutoSetup", page)
 
     def test_qrcode_refresh_is_gated_by_stamp_and_login_reloads_once(self) -> None:
-        request = urllib.request.Request(f"{self.base}/?token=secret")
+        request = urllib.request.Request(f"{self.base}/console?token=secret")
         with urllib.request.urlopen(request, timeout=5) as response:
             page = response.read().decode("utf-8")
         self.assertIn("var lastQrStamp = null;", page)

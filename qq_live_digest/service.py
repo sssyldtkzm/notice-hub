@@ -47,6 +47,9 @@ class DigestService:
             settings.data_dir / "digest.sqlite3",
             retention_days=settings.message_retention_days,
         )
+        from .board import repair_store
+        repair_result = repair_store(self.store)
+        self.logger.info("作业数据修复：%s", repair_result)
         self._bot = bot
         self._receiver = receiver
         self._pushers = pushers
@@ -806,9 +809,11 @@ class DigestService:
             message_count=digest.message_count,
             llm_used=digest.llm_used,
         )
-        self.store.mark_processed(digest.message_ids, digest.id)
         manager = self._ensure_push_manager()
         tasks = self._sync_tasks(digest)
+        # Only acknowledge the batch after task persistence succeeds. A crash
+        # between these operations must leave messages available for retry.
+        self.store.mark_processed(digest.message_ids, digest.id)
         if self.settings.html_push:
             digest.html = html_push_text(digest, self.settings)
         if not manager.has_channels:
@@ -912,8 +917,7 @@ class DigestService:
                 if not is_task_eligible(item, self.settings):
                     continue
                 deadline = item.get("deadline_dt")
-                if isinstance(deadline, dt.datetime) and deadline < today_start:
-                    continue  # 已经过期的历史事项不再回填
+                # Past deadlines remain actionable and belong in the overdue list.
                 summary = str(item.get("summary") or "")
                 text = str(item["message"].text or "")
                 if "链路自测" in text or "链路自测" in summary:

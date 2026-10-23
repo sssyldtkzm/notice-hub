@@ -627,10 +627,34 @@ def _parse_clock(value: str) -> tuple[int, int] | None:
     return None
 
 
-def _build_datetime(date_value: dt.date, after: str) -> dt.datetime:
+def deadline_after_sent(value: dt.datetime, reference: dt.datetime, text: str) -> dt.datetime | None:
+    """Resolve an omitted AM/PM only when the same-day afternoon is still ahead."""
+    if value > reference:
+        return value
+    if value.date() == reference.date() and 1 <= value.hour <= 11:
+        for match in CLOCK_RE.finditer(text or ""):
+            if _parse_clock_number(match.group("hour")) != value.hour:
+                continue
+            if (_parse_clock_number(match.group("minute") or "0") or 0) != value.minute:
+                continue
+            if match.group("period") or match.group("hour").startswith("0"):
+                return None
+            # Only a colloquial clock (5点/五点), not an explicit 24-hour clock.
+            if match.group("separator") not in {"点", "时"}:
+                return None
+            if re.search(r"今早|明早|明晨|清晨|早晨", text[max(0, match.start()-6):match.start()]):
+                continue
+            afternoon = value + dt.timedelta(hours=12)
+            if afternoon > reference:
+                return afternoon
+    return None
+
+
+def _build_datetime(date_value: dt.date, after: str, reference: dt.datetime | None = None) -> dt.datetime:
     clock = _parse_clock(after)
     if clock:
-        return dt.datetime.combine(date_value, dt.time(clock[0], clock[1]))
+        value = dt.datetime.combine(date_value, dt.time(clock[0], clock[1]))
+        return (deadline_after_sent(value, reference, after) or value) if reference else value
     return dt.datetime.combine(date_value, dt.time(23, 59))
 
 
@@ -706,7 +730,7 @@ def extract_deadline(message: Message) -> dt.datetime | None:
             value_date = dt.date(reference.year, month, day)
             if value_date < reference.date() - dt.timedelta(days=90):
                 value_date = value_date.replace(year=reference.year + 1)
-            candidates.append(_build_datetime(value_date, text[match.end(): match.end() + 80]))
+            candidates.append(_build_datetime(value_date, text[match.end(): match.end() + 80], reference))
         except (TypeError, ValueError):
             continue
 
@@ -746,7 +770,9 @@ def extract_deadline(message: Message) -> dt.datetime | None:
             continue
         if word in {"今晚", "明晚"}:
             suffix = "晚上" + suffix
-        candidates.append(_build_datetime(target_date, suffix))
+        elif word in {"今早", "明早", "明晨"}:
+            suffix = "上午" + suffix
+        candidates.append(_build_datetime(target_date, suffix, reference))
 
     weekday_values = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
     for match in re.finditer(r"(?P<prefix>本周|这周|下周|周|星期)周?(?P<day>[一二三四五六日天])", text):
@@ -759,11 +785,11 @@ def extract_deadline(message: Message) -> dt.datetime | None:
             value_date = reference.date() - dt.timedelta(days=reference.weekday()) + dt.timedelta(days=target)
         else:
             value_date = reference.date() + dt.timedelta(days=(target - reference.weekday()) % 7)
-        candidates.append(_build_datetime(value_date, text[match.end():]))
+        candidates.append(_build_datetime(value_date, text[match.end():], reference))
 
     future = [
         candidate for candidate in candidates
-        if candidate.date() >= reference.date() - dt.timedelta(days=1)
+        if candidate > reference
     ]
     if not future:
         return None
