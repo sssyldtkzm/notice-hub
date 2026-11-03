@@ -66,6 +66,12 @@ def test_explicit_deadline_uses_notice_not_import_date():
     ('10月9日前提交作业', '2026-10-01T09:00:00', '2026-10-09T23:59:00'),
     # A yearless date across new year belongs to the next year.
     ('1月5日前提交实验报告', '2026-12-28T10:00:00', '2027-01-05T23:59:00'),
+    # Common deadline phrasings besides 提交/截止.
+    ('请于11月4日 22:00前拍照上传学习通', '2026-11-01T09:00:00', '2026-11-04T22:00:00'),
+    ('课后练习Unit 6，11月8日前在U校园完成', '2026-11-01T09:00:00', '2026-11-08T23:59:00'),
+    ('请于11月7日 12:00前填写信息核对表', '2026-11-01T09:00:00', '2026-11-07T12:00:00'),
+    # A date with no deadline wording is not a deadline.
+    ('11月8日下午班级聚餐', '2026-11-01T09:00:00', ''),
 ])
 def test_explicit_deadline_clock_and_year(text, sent, expected):
     assert board.explicit_deadline(text, sent) == expected

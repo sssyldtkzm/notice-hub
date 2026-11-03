@@ -19,7 +19,11 @@ DATE_CLOCK = re.compile(
 )
 PM_PERIODS = {"下午", "傍晚", "晚上"}
 CLOCK = re.compile(r"(?:上午|下午|晚上|中午)?\s*\d{1,2}(?:[:：]\d{2}|点(?:半|\d{1,2}分)?)")
-DEADLINE_WORDS = re.compile(r"截止|最晚|之前|前提交|前交|交作业|提交时间|补交")
+DEADLINE_WORDS = re.compile(
+    r"截止|最晚|之前|交作业|提交时间|补交"
+    # "X月X日前拍照上传" / "前在U校园完成": a short gap between 前 and the verb.
+    r"|前[^，。；！\n]{0,10}?(?:提交|交|上传|完成|填写|填报|报名|发送|发到|发至|缴|确认|登记)"
+)
 
 
 def is_homework(text: str) -> bool:
