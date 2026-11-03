@@ -53,6 +53,24 @@ def test_explicit_deadline_uses_notice_not_import_date():
     assert board.explicit_deadline('作业10月25日晚上10点截止', '2026-10-23T12:00:00') == '2026-10-25T22:00:00'
 
 
+@pytest.mark.parametrize('text,sent,expected', [
+    # A period word in a later sentence must not move the deadline clock.
+    ('10月8日 8:00前提交第三次作业，下午2点在B201讲评', '2026-10-01T09:00:00', '2026-10-08T08:00:00'),
+    ('10月9日 9:30前提交作业，晚上开班会', '2026-10-01T09:00:00', '2026-10-09T09:30:00'),
+    ('10月9日下午3:30前提交作业', '2026-10-01T09:00:00', '2026-10-09T15:30:00'),
+    ('10月9日下午3点前提交作业', '2026-10-01T09:00:00', '2026-10-09T15:00:00'),
+    ('10月9日晚上12点前交作业', '2026-10-01T09:00:00', '2026-10-09T23:59:00'),
+    ('10月9日中午12点前提交作业', '2026-10-01T09:00:00', '2026-10-09T12:00:00'),
+    ('10月9日中午1点前提交作业', '2026-10-01T09:00:00', '2026-10-09T13:00:00'),
+    ('10月9日凌晨1点前提交作业', '2026-10-01T09:00:00', '2026-10-09T01:00:00'),
+    ('10月9日前提交作业', '2026-10-01T09:00:00', '2026-10-09T23:59:00'),
+    # A yearless date across new year belongs to the next year.
+    ('1月5日前提交实验报告', '2026-12-28T10:00:00', '2027-01-05T23:59:00'),
+])
+def test_explicit_deadline_clock_and_year(text, sent, expected):
+    assert board.explicit_deadline(text, sent) == expected
+
+
 def test_no_40_or_800_item_display_cutoff(tmp_path):
     store = Store(tmp_path / 'test.sqlite')
     for number in range(805):

@@ -979,7 +979,7 @@ class DigestService:
         last = parse_iso(self.store.meta_get("last_prune", ""))
         if last and (now - last).total_seconds() < PRUNE_INTERVAL_SECONDS:
             return
-        removed = self.store.prune()
+        removed = self.store.prune(now=now)
         self.store.meta_set("last_prune", iso(now))
         files = cleanup_files(
             self.settings.data_dir / "files",
