@@ -57,7 +57,7 @@ class DashboardMotionTest(unittest.TestCase):
         self.assertRegex(css, r"#groups label\{[^}]*min-height:44px")
         self.assertRegex(css, r"\.login-more summary\{min-height:44px")
         self.assertIn("button:focus-visible", css)
-        self.assertIn("outline:2px solid #12695b!important;outline-offset:2px!important", css)
+        self.assertIn("outline:2px solid #4f6bed!important;outline-offset:2px!important", css)
         self.assertNotIn("outline:3px solid", PAGE_HTML)
         self.assertNotIn("outline-offset:3px", PAGE_HTML)
         self.assertIn("min-width:0", css)
@@ -96,7 +96,7 @@ class DashboardMotionTest(unittest.TestCase):
         # 配色契约（用户原话「颜色丑、整体不配合、不方便阅读」的客观复现）：上一版混了蓝 58,120,170
         # 与紫 120,90,180，alpha 又高到 .42，实测顶部空白带与底色色差 ΔE 7.1、次级文字对比度掉到
         # 4.02:1（低于 WCAG 4.5:1）。现在只准用本页两个强调色 teal 18,105,91 / amber 180,140,60。
-        self.assertIn("rgba(18,105,91,.24)", background)
+        self.assertIn("rgba(79,107,237,.24)", background)
         self.assertIn("rgba(180,140,60,.16)", background)
         self.assertNotIn("58,120,170", background)
         self.assertNotIn("120,90,180", background)
@@ -116,23 +116,23 @@ class DashboardMotionTest(unittest.TestCase):
         for token in (
             "--page:#e8ebee",
             "--paper-alt:#f2f4f6",
-            "--muted:#3d4f47",
+            "--muted:#3d414f",
             "--line:#b0b8bd",
-            "--teal-soft:#d6ede7",
+            "--teal-soft:#d6dbed",
             "--red-soft:#ffeeed",
             "--amber-soft:#fff3db",
         ):
             self.assertIn(token, css)
-        self.assertNotIn("--page:#edf2ef", css)
-        self.assertNotIn("--line:#c9d4ce", css)
-        self.assertNotIn("--paper-alt:#f5f8f6", css)
+        self.assertNotIn("--page:#edeef2", css)
+        self.assertNotIn("--line:#c9cbd4", css)
+        self.assertNotIn("--paper-alt:#f5f6f8", css)
         # 排版阶梯：概览主标题最大、分组标题更小更轻，三档随宽度单调（手机 28 < 基准 32 < 宽屏 34）。
         self.assertRegex(css, r"\.summary h1\{[^}]*font-size:32px")
         self.assertRegex(css, r"\.section-title\{[^}]*font-size:17px")
         self.assertIn(".summary h1{font-size:34px}", css)
         self.assertIn(".summary h1{font-size:28px}", css)
         self.assertIn(".summary{margin-top:24px;padding:24px 32px}", css)
-        self.assertIn('width:4px;background:#667c71}', css)
+        self.assertIn('width:4px;background:#666a7c}', css)
         # 悬停微交互：按钮抬 1px + 浅影，并且必须在两套关动效规则里被压回原位。
         self.assertIn(".btn:not(:disabled):hover,.correct-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(20,49,39,.12)}", css)
         self.assertIn(".surface,.task:hover,.btn:hover,.correct-btn:hover{transform:none!important}", css)
@@ -193,7 +193,7 @@ class DashboardMotionTest(unittest.TestCase):
             self.assertIn(selector, css)
         self.assertIn("transition-duration:100ms", css)
         self.assertIn("button:disabled,input:disabled,select:disabled{cursor:not-allowed;opacity:.5}", css)
-        self.assertIn("outline:2px solid #12695b!important;outline-offset:2px!important", css)
+        self.assertIn("outline:2px solid #4f6bed!important;outline-offset:2px!important", css)
         self.assertIn("html[data-motion=paused]", css)
         node_start = PAGE_HTML.index("function taskNode(task)")
         node_end = PAGE_HTML.index("function section(title", node_start)
@@ -220,7 +220,7 @@ class DashboardMotionTest(unittest.TestCase):
         pressed = re.search(r"\.task \.check:active:not\(:disabled\)\{([^}]*)\}", css)
         self.assertIsNotNone(pressed)
         self.assertIn("transform:none", pressed.group(1))
-        self.assertIn("background:#d2e9e2", pressed.group(1))
+        self.assertIn("background:#d2d7e9", pressed.group(1))
         self.assertIn("box-shadow:inset 0 0 0 2px", pressed.group(1))
 
     def test_calendar_follows_today_on_mobile_and_uses_a_wide_desktop_column(self) -> None:
@@ -528,8 +528,8 @@ class DashboardMotionTest(unittest.TestCase):
         self.assertIn("for(let d=1;d<=days;d++){let key=dayKey(y,m,d);", PAGE_HTML)
         self.assertIn('id="calendar-detail"', PAGE_HTML)
         self.assertIn(
-            ".calendar-event{display:-webkit-box;margin-top:3px;padding:3px 4px;border-radius:3px;background:#e5f3ec;"
-            "color:#1f4738;font-size:11px;line-height:14px;overflow:hidden;overflow-wrap:anywhere;-webkit-line-clamp:1;-webkit-box-orient:vertical}",
+            ".calendar-event{display:-webkit-box;margin-top:3px;padding:3px 4px;border-radius:3px;background:#e5e8f3;"
+            "color:#1c2340;font-size:11px;line-height:14px;overflow:hidden;overflow-wrap:anywhere;-webkit-line-clamp:1;-webkit-box-orient:vertical}",
             css,
         )
         self.assertIn(".calendar-day.today{", css)
@@ -579,14 +579,14 @@ class DashboardMotionTest(unittest.TestCase):
         self.assertIn("calendarDetail.style.removeProperty('--detail-h');", PAGE_HTML)
         # 小数行高会把文字与圆角边框放到半像素上（用户报的「日程下端锯齿」）
         for needle in (
-            ".calendar-detail{margin-top:10px;padding:10px 12px;border:1px solid #b8cbc1;border-radius:6px;"
-            "background:#f7faf8;color:#263b32;font-size:13px;line-height:20px;overflow:hidden}",
+            ".calendar-detail{margin-top:10px;padding:10px 12px;border:1px solid #e1e4ee;border-radius:6px;"
+            "background:#f7f8fa;color:#1c2340;font-size:13px;line-height:20px;overflow:hidden}",
             ".calendar-detail h3{margin:0;font-size:14px;line-height:20px}",
             ".calendar-day strong{font-size:13px;line-height:16px;font-variant-numeric:tabular-nums}",
-            ".calendar-more{display:block;margin-top:3px;padding:2px 4px;color:#42554e;font-size:10px;"
+            ".calendar-more{display:block;margin-top:3px;padding:2px 4px;color:#5b6380;font-size:10px;"
             "line-height:14px;text-align:right}",
-            ".calendar-note{margin:8px 0 0;color:#4b5f55;font-size:12px;line-height:16px}",
-            "color:#4a6055;font-size:12px;line-height:16px;font-weight:650",
+            ".calendar-note{margin:8px 0 0;color:#4b4f5f;font-size:12px;line-height:16px}",
+            "color:#4a4e60;font-size:12px;line-height:16px;font-weight:650",
         ):
             self.assertIn(needle, css)
 
@@ -602,7 +602,7 @@ class DashboardMotionTest(unittest.TestCase):
         self.assertIn("handle.addEventListener('keydown'", PAGE_HTML)
         self.assertIn("handle.addEventListener('pointermove'", PAGE_HTML)
         self.assertIn(".pinned-resize{display:flex", css)
-        self.assertIn(".pinned-panel.is-resizing .pinned-resize{border-style:solid;border-color:#12695b}", css)
+        self.assertIn(".pinned-panel.is-resizing .pinned-resize{border-style:solid;border-color:#4f6bed}", css)
 
     def test_hosting_shortcut_and_onboarding_journey_are_wired(self) -> None:
         self.assertIn('id="host-state"', PAGE_HTML)
@@ -642,7 +642,7 @@ class DashboardMotionTest(unittest.TestCase):
         self.assertIn('title="第一次用点这个：下载安装 NapCat、启动引擎并显示登录二维码"', PAGE_HTML)
         self.assertIn('title="只启动引擎并显示登录二维码；不会退出电脑版 QQ"', PAGE_HTML)
         self.assertIn('title="二维码过期或看不清时重新获取一张"', PAGE_HTML)
-        self.assertIn(".connect-hint{margin:8px 0 0;color:#42554e;font-size:12px;line-height:1.6}", self._current_stylesheet())
+        self.assertIn(".connect-hint{margin:8px 0 0;color:#5b6380;font-size:12px;line-height:1.6}", self._current_stylesheet())
 
     def test_right_rail_panels_report_week_actions_and_health(self) -> None:
         css = self._current_stylesheet()
