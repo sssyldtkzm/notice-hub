@@ -22,6 +22,12 @@ class NapcatAdminTests(unittest.TestCase):
         text = "  TCP    0.0.0.0:6099    0.0.0.0:0    LISTENING    10\n  TCP    [::]:6099       [::]:0       LISTENING    10\n"
         self.assertIn(6099, na._ports(text))
 
+    def test_ports_survive_non_utf8_netstat_output(self):
+        # 中文 Windows 的 netstat 输出 GBK；Python UTF-8 模式下必须容错，不能让 NapCat 启动整体失败。
+        gbk = "\r\n活动连接\r\n  TCP    0.0.0.0:6099    0.0.0.0:0    LISTENING    10\r\n".encode("gbk")
+        with patch.object(na.subprocess, "check_output", side_effect=lambda *a, **k: gbk.decode("utf-8", k.get("errors", "strict"))):
+            self.assertEqual(na._ports(), {6099})
+
     def test_live_root_wins_even_when_later(self):
         with tempfile.TemporaryDirectory() as td:
             first, second = Path(td) / "first", Path(td) / "second"
