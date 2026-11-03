@@ -41,7 +41,9 @@ def _json(path: Path) -> dict[str, Any]:
 def _ports(text: str | None = None) -> set[int]:
     if text is None:
         try:
-            text = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+            # netstat 输出系统编码的中文（如 GBK 的「活动连接」）；只解析其中的端口数字，
+            # 遇到解不开的字节就替换掉，避免 Python UTF-8 模式下整个启动流程崩溃。
+            text = subprocess.check_output(["netstat", "-ano"], text=True, errors="replace", stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
         except (OSError, subprocess.SubprocessError):
             return set()
     ports: set[int] = set()
@@ -345,7 +347,7 @@ def _kill_matching(pattern: str) -> list[int]:
         "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'NapCatWinBootMain.exe' "
         f"-and $_.CommandLine -like '*{safe}*' }} | Select-Object -ExpandProperty ProcessId"
     )
-    raw = subprocess.check_output(["powershell.exe", "-NoProfile", "-Command", query], text=True, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+    raw = subprocess.check_output(["powershell.exe", "-NoProfile", "-Command", query], text=True, errors="replace", stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
     pids = [int(x) for x in raw.split() if x.isdigit()]
     for pid in pids:
         subprocess.run(["taskkill.exe", "/PID", str(pid), "/T", "/F"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))

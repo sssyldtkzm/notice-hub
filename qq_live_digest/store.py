@@ -1230,9 +1230,9 @@ class Store:
             )
 
     # ------------------------------------------------------------------- 维护
-    def prune(self, *, retention_days: int | None = None) -> int:
+    def prune(self, *, retention_days: int | None = None, now: dt.datetime | None = None) -> int:
         days = int(retention_days or self.retention_days)
-        cutoff = iso(now_local() - dt.timedelta(days=days))
+        cutoff = iso((now or now_local()) - dt.timedelta(days=days))
         with self._connect() as connection:
             # 先删子表（processed 外键引用 messages），再删父表
             connection.execute(

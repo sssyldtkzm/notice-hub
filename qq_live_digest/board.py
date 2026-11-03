@@ -10,9 +10,20 @@ from typing import Any
 from .timeutil import iso, now_local, parse_iso
 
 HOMEWORK = re.compile(r"作业|习题|课后练习|实验报告|实验预习|课程报告|课程论文|课后题")
-DATE = re.compile(r"(?<!\d)(?:(20\d{2})[年/.-])?(\d{1,2})[月/.-](\d{1,2})日?(?:[ T，,]*([0-2]?\d)[:：]([0-5]\d))?")
+DATE = re.compile(r"(?<!\d)(?:(20\d{2})[年/.-])?(\d{1,2})[月/.-](\d{1,2})(?:日|号)?")
+# The clock that belongs to a date sits right after it; a period word only
+# applies when it is between the two, never from a later sentence.
+DATE_CLOCK = re.compile(
+    r"[ T，,]*(?:(上午|早上|早晨|中午|下午|傍晚|晚上|凌晨)\s*)?"
+    r"([0-2]?\d)(?:[:：]([0-5]\d)|点(?:(半)|([0-5]?\d)分?)?)"
+)
+PM_PERIODS = {"下午", "傍晚", "晚上"}
 CLOCK = re.compile(r"(?:上午|下午|晚上|中午)?\s*\d{1,2}(?:[:：]\d{2}|点(?:半|\d{1,2}分)?)")
-DEADLINE_WORDS = re.compile(r"截止|最晚|之前|前提交|前交|交作业|提交时间|补交")
+DEADLINE_WORDS = re.compile(
+    r"截止|最晚|之前|交作业|提交时间|补交"
+    # "X月X日前拍照上传" / "前在U校园完成": a short gap between 前 and the verb.
+    r"|前[^，。；！\n]{0,10}?(?:提交|交|上传|完成|填写|填报|报名|发送|发到|发至|缴|确认|登记)"
+)
 
 
 def is_homework(text: str) -> bool:
@@ -39,17 +50,26 @@ def explicit_deadline(text: str, reference: Any = None) -> str:
             continue
         try:
             year = int(match[1] or reference.year)
-            hour, minute = int(match[4] or 23), int(match[5] or 59)
-            if not match[4]:
-                clock = re.match(r"\s*(上午|下午|晚上|中午|凌晨)?\s*(\d{1,2})点(?:(半)|(\d{1,2})分?)?", text[match.end():match.end()+20])
-                if clock:
-                    hour, minute = int(clock[2]), 30 if clock[3] else int(clock[4] or 0)
-                    if clock[1] in {"下午", "晚上", "中午"} and hour < 12:
-                        hour += 12
-            # An explicitly stated afternoon clock retains its actual hour.
-            if match[4] and re.search(r"下午|晚上", context) and hour < 12:
-                hour += 12
+            hour, minute = 23, 59
+            clock = DATE_CLOCK.match(text, match.end())
+            if clock:
+                period, hour = clock[1], int(clock[2])
+                minute = int(clock[3] or clock[5] or 0) if not clock[4] else 30
+                if period in PM_PERIODS and hour == 12:
+                    # "晚上12点" is the end of that day, not noon.
+                    hour, minute = 23, 59
+                elif period in PM_PERIODS and hour < 12:
+                    hour += 12
+                elif period == "中午" and 1 <= hour <= 2:
+                    hour += 12
             value = dt.datetime(year, int(match[2]), int(match[3]), hour, minute)
+            if not match[1]:
+                # A yearless date half a year away from the notice belongs to
+                # the adjacent year (e.g. "1月5日" sent on 12月28日).
+                if value < reference - dt.timedelta(days=183):
+                    value = value.replace(year=year + 1)
+                elif value > reference + dt.timedelta(days=183):
+                    value = value.replace(year=year - 1)
             choices.append((0 if match[1] else 1, abs(DEADLINE_WORDS.search(context).start() - (match.start() - max(0, match.start() - 14))), value))
         except ValueError:
             continue

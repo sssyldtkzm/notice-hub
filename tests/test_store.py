@@ -146,6 +146,13 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(removed, 1)
         self.assertEqual(self.store.counts()["messages"], 0)
 
+    def test_prune_uses_given_now(self) -> None:
+        sent = dt.datetime(2026, 9, 28, 17, 50)
+        self.store.insert_message(msg_id="fresh", group_id="g1", content="新消息", received_at=iso(sent))
+        # Relative to the given clock the message is new, whatever today is.
+        self.assertEqual(self.store.prune(retention_days=30, now=sent + dt.timedelta(minutes=10)), 0)
+        self.assertEqual(self.store.prune(retention_days=30, now=sent + dt.timedelta(days=31)), 1)
+
     def test_jsonl_audit_written(self) -> None:
         self._insert("m1")
         path = Path(self.tmp.name) / "messages.jsonl"
